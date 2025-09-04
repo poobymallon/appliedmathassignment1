@@ -1,6 +1,6 @@
 function firstmethods()
 
-    % Initial guesses for each root-finding method
+    % initial guesses for each root-finding method
     bisect_start = [0, 5, 2.5];       % [left, right, midpoint] for bisection
     newton_start = 0;                 % Initial guess for Newton-Raphson
     secant_start = [0;1];             % Two initial points for secant method
