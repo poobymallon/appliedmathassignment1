@@ -8,10 +8,10 @@ function firstmethods()
     % Definition of the nonlinear test function
     test_func01 = @(x) (x.^3)/100 - (x.^2)/8 + 2*x + 6*sin(x/2+6) -.7 - exp(x/6);
     
-    % Derivative of the test function for use in Newton-Raphson method
+    % Derivative of the test function for use in Newton method
     test_derivative01 = @(x) 3*(x.^2)/100 - 2*x/8 + 2 +(6/2)*cos(x/2+6) - exp(x/6)/6;
     
-    % Newton-Raphson update function
+    % Newton update function
     newton_func = @(x) x - test_func01(x)/test_derivative01(x);
     
     % Secant method update function using two previous points
