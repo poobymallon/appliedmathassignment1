@@ -94,25 +94,37 @@ xlabel('x'); ylabel('f(x)');
 M = (L + R)/2;
 
 % running all mthds using new generic solvers
-[root_bisect, itb, flagb] = bisection_solver(f, L, R, 1e-6, 1e-6, 200);
-[root_newton, itn, flagn] = newton_solver(@(x) deal(f(x), df(x)), M, 1e-6, 1e-6, 100);
-[root_secant, its, flags] = secant_solver(f, L, R, 1e-6, 1e-6, 100);
+[root_bisect, itb, flagb, glist1] = bisection_solver(f, L, R, 1e-6, 1e-6, 200);
+[root_newton, itn, flagn, glist2] = newton_solver(@(x) deal(f(x), df(x)), M, 1e-6, 1e-6, 100);
+[root_secant, its, flags, glist3] = secant_solver(f, L, R, 1e-6, 1e-6, 100);
 
 % printing results
 fprintf('bisection root: %.6f  iters:%d flag:%d\n', root_bisect, itb, flagb);
 fprintf('newton root: %.6f    iters:%d flag:%d\n', root_newton, itn, flagn);
 fprintf('secant root: %.6f    iters:%d flag:%d\n', root_secant, its, flags);
 
-function [root, it, flag] = bisection_solver(f, L, R, Athresh, Bthresh, maxit)
+figure
+ms = glist1;                  % Extract midpoints from iterations
+ms_err = abs(ms-root_bisect);                   % Function values at midpoints
+plot(ms_err)
+bef = ms_err(1:end-1);
+aft = ms_err(2:end);
+loglog(bef,aft,"r.")
+loglog(bef,aft,'ro','markerfacecolor','r','markersize',1);
+
+
+function [root, it, flag, glist] = bisection_solver(f, L, R, Athresh, Bthresh, maxit)
     % part 2: bisection safeguard (make sure root is bracketed)
     if f(L)*f(R) > 0
         root = NaN; it = 0; flag = -1; % -1 = bad bracket
         return
     end
+    glist = [];
     % halving interval each loop
     it = 0; flag = 0;
     while (R - L)/2 > Athresh && it < maxit
-        M = (L + R)/2;          
+        M = (L + R)/2;  
+        glist(end+1) = M;
         if abs(f(M)) < Bthresh
             root = M; flag = 1; return   % success by |f(x)| small
         end
@@ -126,16 +138,19 @@ function [root, it, flag] = bisection_solver(f, L, R, Athresh, Bthresh, maxit)
     root = (L + R)/2; flag = 1; % final midpoint = root
 end
 
-function [root, it, flag] = newton_solver(fun_both, x0, Athresh, Bthresh, maxit)
+function [root, it, flag, glist] = newton_solver(fun_both, x0, Athresh, Bthresh, maxit)
     % fast convergence near root
     % using slope to jump closer
+    glist = []
     root = x0; it = 0; flag = 0;
+    glist(end+1) = root;
     [fx, dfx] = fun_both(root);
     while abs(fx) > Bthresh && it < maxit
         if dfx == 0
             flag = -2; return  % -2 = zero derivative
         end
         x_new = root - fx/dfx; % updating step
+        glist(end+1) = root;
         if abs(x_new - root) < Athresh
             root = x_new; flag = 1; return
         end
@@ -146,17 +161,21 @@ function [root, it, flag] = newton_solver(fun_both, x0, Athresh, Bthresh, maxit)
     flag = 1;
 end
 
-function [root, it, flag] = secant_solver(f, x0, x1, Athresh, Bthresh, maxit)
+function [root, it, flag, glist] = secant_solver(f, x0, x1, Athresh, Bthresh, maxit)
     % no derivative needed
     % using secant line slope
     it = 0; flag = 0;
     f0 = f(x0); f1 = f(x1);
+    glist = []
+    glist(end+1) = x0;
+    glist(end+1) = x1;
     while abs(f1) > Bthresh && it < maxit
         denom = (f1 - f0);
         if denom == 0
             root = x1; flag = -2; return % -2 = zero denominator
         end
         x_next = x1 - f1*(x1 - x0)/denom; % updating step
+        glist(end+1) = x_next;
         if abs(x_next - x1) < Athresh
             root = x_next; flag = 1; return
         end
