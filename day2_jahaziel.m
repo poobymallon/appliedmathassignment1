@@ -152,10 +152,13 @@ loglog(bregx, bregy, 'ro', 'markerfacecolor','r', 'markersize',3)
 hold on
 loglog(nregx, nregy, 'ro', 'markerfacecolor','g', 'markersize',3)
 loglog(sregx, sregy, 'ro', 'markerfacecolor','b', 'markersize',3)
-[p_b, k_b] = generate_error_fit(bregx, bregy);
-[p_n, k_n] = generate_error_fit(nregx, nregy);
-[p_s, k_s] = generate_error_fit(sregx, sregy);
-newtexp = abs(1/2)
+[p_b, k_b] = generate_error_fit(bregx, bregy)
+[p_n, k_n] = generate_error_fit(nregx, nregy)
+[p_s, k_s] = generate_error_fit(sregx, sregy)
+[dfdx,d2fdx2] = approximate_derivative(f,root_newton);
+newtexp = abs((1/2)*(d2fdx2/dfdx))
+
+
 
 figure
 ms = glist1;                                  % step 1: xn sequence (bisection midpoints)
@@ -252,6 +255,20 @@ function [p,k] = generate_error_fit(x_regression,y_regression)
     %pull out the coefficients from the fit
     p = coeff_vec(1);
     k = exp(coeff_vec(2));
+end
+
+
+function [dfdx,d2fdx2] = approximate_derivative(fun,x)
+%set the step size to be tiny
+    delta_x = 1e-6;
+%compute the function at different points near x
+    f_left = fun(x-delta_x);
+    f_0 = fun(x);
+    f_right = fun(x+delta_x);
+%approximate the first derivative
+    dfdx = (f_right-f_left)/(2*delta_x);
+%approximate the second derivative
+    d2fdx2 = (f_right-2*f_0+f_left)/(delta_x^2);
 end
 
 
