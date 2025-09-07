@@ -59,7 +59,7 @@ end
 
 % newton trials (random single starts near the root)
 for k = 1:ntrials
-    x0 = -0.5 + 2.0*rand;          % random start in [-0.5, 1.5]
+    x0 = -0.5 + 5.0*rand;          % random start in [-0.5, 1.5]
     [rk, itk, flagk, glk] = newton_solver(@(x) deal(f(x), df(x)), x0, 1e-6, 1e-6, 100);
     if flagk ~= 1 || numel(glk) < 2, continue, end
 
@@ -70,8 +70,8 @@ end
 
 % secant trials (random pairs near the root)
 for k = 1:ntrials
-    x0 = -0.5 + 2.0*rand;
-    x1 = -0.5 + 2.0*rand;
+    x0 = -0.7 + 1*rand;
+    x1 = -0.7 + 5.0*rand;
     if x0 == x1, x1 = x1 + 1e-3; end
 
     [rk, itk, flagk, glk] = secant_solver(f, x0, x1, 1e-6, 1e-6, 100);
@@ -91,14 +91,71 @@ else
     disp('all methods produced data -> step 3 good');
 end
 
+%example for how to filter the error data
+%currently have error_list0, error_list1, index_list
+%data points to be used in the regression
+bregx = []; % e_n
+bregy = []; % e_{n+1}
+%iterate through the collected data
+for n=1:length(bef_b)
+    %if the error is not too big or too small
+    %and it was enough iterations into the trial...
+    if bef_b(n)>1e-15 && bef_b(n)<1e-2 && ...
+            aft_b(n)>1e-14 && aft_b(n)<1e-2 
+        %then add it to the set of points for regression
+        bregx(end+1) = bef_b(n);
+        bregy(end+1) = aft_b(n);
+    end
+end
+
+nregx = []; % e_n
+nregy = []; % e_{n+1}
+%iterate through the collected data
+for n=1:length(bef_n)
+    %if the error is not too big or too small
+    %and it was enough iterations into the trial...
+    if bef_n(n)>1e-15 && bef_n(n)<1e-2 && ...
+            aft_n(n)>1e-14 && aft_n(n)<1e-2 
+        %then add it to the set of points for regression
+        nregx(end+1) = bef_n(n);
+        nregy(end+1) = aft_n(n);
+    end
+end
+
+sregx = []; % e_n
+sregy = []; % e_{n+1}
+%iterate through the collected data
+for n=1:length(bef_s)
+    %if the error is not too big or too small
+    %and it was enough iterations into the trial...
+    if bef_s(n)>1e-15 && bef_s(n)<1e-2 && ...
+            aft_s(n)>1e-14 && aft_s(n)<1e-2 
+        %then add it to the set of points for regression
+        sregx(end+1) = bef_s(n);
+        sregy(end+1) = aft_s(n);
+    end
+end
+
 % combined plot to see all three on one figure
-figure; hold on; grid on
+figure; grid on
 loglog(bef_b, aft_b, 'ro', 'markerfacecolor','r', 'markersize',3)   % bisection
+hold on;
 loglog(bef_n, aft_n, 'go', 'markerfacecolor','g', 'markersize',3)   % newton
 loglog(bef_s, aft_s, 'bo', 'markerfacecolor','b', 'markersize',3)   % secant
 xlabel('\epsilon_n'); ylabel('\epsilon_{n+1}');
 title('error map from random trials')
 legend('bisection','newton','secant','location','best')
+hold off
+
+figure; grid on
+loglog(bregx, bregy, 'ro', 'markerfacecolor','r', 'markersize',3)
+hold on
+loglog(nregx, nregy, 'ro', 'markerfacecolor','g', 'markersize',3)
+loglog(sregx, sregy, 'ro', 'markerfacecolor','b', 'markersize',3)
+[p_b, k_b] = generate_error_fit(bregx, bregy);
+[p_n, k_n] = generate_error_fit(nregx, nregy);
+[p_s, k_s] = generate_error_fit(sregx, sregy);
+newtexp = abs(1/2)
 
 figure
 ms = glist1;                                  % step 1: xn sequence (bisection midpoints)
@@ -179,6 +236,22 @@ function [root, it, flag, glist] = secant_solver(f, x0, x1, Athresh, Bthresh, ma
         it = it + 1;
     end
     root = x1; flag = 1;
+end
+
+
+function [p,k] = generate_error_fit(x_regression,y_regression)
+    %generate Y, X1, and X2
+    %note that I use the transpose operator (’)
+    %to convert the result from a row vector to a column
+    %If you are copy-pasting, the ’ character may not work correctly
+    Y = log(y_regression)';
+    X1 = log(x_regression)';
+    X2 = ones(length(X1),1);
+    %run the regression
+    coeff_vec = regress(Y,[X1,X2]);
+    %pull out the coefficients from the fit
+    p = coeff_vec(1);
+    k = exp(coeff_vec(2));
 end
 
 
