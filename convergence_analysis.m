@@ -10,165 +10,193 @@
 %filter_list: a list of constants used to filter the collected data
 function convergence_analysis(solver_flag, fun, ...
 x_guess0, guess_list1, guess_list2, filter_list)
-%% part 2 and 3 with step 1-4
+
 f = @(x) (x.^3)/100 - (x.^2)/8 + 2*x + 6*sin(x/2 + 6) - 0.7 - exp(x/6);
 df = @(x) 3*(x.^2)/100 - x/4 + 2 + 3*cos(x/2 + 6) - exp(x/6)/6;
 
-% where f(l) and f(r) have opposite signs
-L = 0; R = 1;
+if solver_flag == 1
 
-% checking signs to make sure a root is inside
-fprintf('f(L) = %.4f, f(R) = %.4f\n', f(L), f(R));
+% this is basically what guess list 1 and 2 should be
+% % bisection trials (random brackets near the same root)
+% for k = 1:ntrials
+%     a = -0.2 + 1.4*rand;           % random left in [-0.2, 1.2]
+%     b = a + 0.6 + 0.8*rand;        % random right at least 0.6 away
+
+    % where f(l) and f(r) have opposite signs
+    L = guess_list1; R = guess_list2;
+    [root_bisect, itb, flagb, glist1] = bisection_solver(f, L, R, 1e-6, 1e-6, 200);
+    % printing results
+    fprintf('bisection root: %.6f  iters:%d flag:%d\n', root_bisect, itb, flagb);
+    
+    bef_b = []; aft_b = [];
+    for k = 1:length(guess_list1)
+        a = guess_list1(k);
+        b = guess_list2(k);
+        if f(a)*f(b) > 0, continue, end
+    
+        [rk, itk, flagk, glk] = bisection_solver(f, a, b, 1e-6, 1e-6, 200);
+        if flagk ~= 1 || numel(glk) < 2, continue, end
+    
+        % step 1: xn sequence lives in glk
+        % step 2: error uses this run's root as reference
+        ek = abs(glk - rk);
+    
+        % build (eps_n, eps_{n+1})
+        bef_b = [bef_b, ek(1:end-1)];
+        aft_b = [aft_b, ek(2:end)];
+    end
+
+
+    bregx = []; % e_n
+    bregy = []; % e_{n+1}
+    %iterate through the collected data
+    for n=1:length(bef_b)
+        %if the error is not too big or too small
+        %and it was enough iterations into the trial...
+        if bef_b(n)>1e-15 && bef_b(n)<1e-2 && ...
+                aft_b(n)>1e-14 && aft_b(n)<1e-2 
+            %then add it to the set of points for regression
+            bregx(end+1) = bef_b(n);
+            bregy(end+1) = aft_b(n);
+        end
+    end
+    % quick check that step 3 collected data (and step 1/2/4 are in play)
+    fprintf('pairs collected -> bisection:%d  newton:%d  secant:%d\n', ...
+        numel(bef_b), numel(bef_n), numel(bef_s));
+    if isempty(bef_b) || isempty(bef_n) || isempty(bef_s)
+        warning('some method did not collect data correctly');
+    else
+        disp('all methods produced data -> step 3 good');
+    end
+    [p_b, k_b] = generate_error_fit(bregx, bregy)
+end
+
+if solver_flag == 2
+% % this is basically what guess list 1 should be 
+% % newton trials (random single starts near the root)
+% a = -0.2 + 1.4*rand;           % random left in [-0.2, 1.2]
+% b = a + 0.6 + 0.8*rand;        % random right at least 0.6 away
+    [root_newton, itn, flagn, glist2] = newton_solver(@(x) deal(f(x), df(x)), M, 1e-6, 1e-6, 100);
+    % printing results
+    fprintf('newton root: %.6f    iters:%d flag:%d\n', root_newton, itn, flagn);
+
+    bef_n = []; aft_n = [];
+    for k = 1:length(guess_list1)
+        % random start in [-0.5, 1.5]
+        [rk, itk, flagk, glk] = newton_solver(@(x) deal(f(x), df(x)), guess_list1(k), 1e-6, 1e-6, 100);
+        if flagk ~= 1 || numel(glk) < 2, continue, end
+
+        ek = abs(glk - rk);
+        bef_n = [bef_n, ek(1:end-1)];
+        aft_n = [aft_n, ek(2:end)];
+    end
+    nregx = []; % e_n
+    nregy = []; % e_{n+1}
+    %iterate through the collected data
+    for n=1:length(bef_n)
+        %if the error is not too big or too small
+        %and it was enough iterations into the trial...
+        if bef_n(n)>1e-15 && bef_n(n)<1e-2 && ...
+                aft_n(n)>1e-14 && aft_n(n)<1e-2 
+            %then add it to the set of points for regression
+            nregx(end+1) = bef_n(n);
+            nregy(end+1) = aft_n(n);
+        end
+    end
+    [p_n, k_n] = generate_error_fit(nregx, nregy)
+    [dfdx,d2fdx2] = approximate_derivative(f,root_newton);
+    newtexp = abs((1/2)*(d2fdx2/dfdx))
+end
+
+if solver_flag == 3
+% % this is basically what guess list 1 and 2 should be 
+% % secant trials (random pairs near the root)
+
+    [root_secant, its, flags, glist3] = secant_solver(f, L, R, 1e-6, 1e-6, 100);
+    fprintf('secant root: %.6f    iters:%d flag:%d\n', root_secant, its, flags);
+
+    % containers for all pairs
+
+    bef_s = []; aft_s = [];    
+    for k = 1:length(guess_list1)
+        x0 = guess_list1(k);
+        x1 = guess_list2(k);
+        if x0 == x1, x1 = x1 + 1e-7; end
+    
+        [rk, itk, flagk, glk] = secant_solver(f, x0, x1, 1e-6, 1e-6, 100);
+        if flagk ~= 1 || numel(glk) < 2, continue, end
+    
+        ek = abs(glk - rk);
+        bef_s = [bef_s, ek(1:end-1)];
+        aft_s = [aft_s, ek(2:end)];
+    end
+    sregx = []; % e_n
+    sregy = []; % e_{n+1}
+    %iterate through the collected data
+    for n=1:length(bef_s)
+        %if the error is not too big or too small
+        %and it was enough iterations into the trial...
+        if bef_s(n)>1e-15 && bef_s(n)<1e-2 && ...
+                aft_s(n)>1e-14 && aft_s(n)<1e-2 
+            %then add it to the set of points for regression
+            sregx(end+1) = bef_s(n);
+            sregy(end+1) = aft_s(n);
+        end
+    end
+    [p_s, k_s] = generate_error_fit(sregx, sregy)
+end
+
+if solver_flag == 4
+
+end
+
 
 figure;
-fplot(f, [-15 40]);     
+fplot(fun, [-15 40]);     
 yline(0,'--');           % horizontal line at y=0
 grid on;
 title('checking where roots are');
 xlabel('x'); ylabel('f(x)');
 
-% midpoint for newton start
-M = (L + R)/2;
-
-% running all mthds using new generic solvers
-% step 1: saving iterates in glist1/glist2/glist3
-% step 2: roots below are the reference used for errors right after
-[root_bisect, itb, flagb, glist1] = bisection_solver(f, L, R, 1e-6, 1e-6, 200);
-[root_newton, itn, flagn, glist2] = newton_solver(@(x) deal(f(x), df(x)), M, 1e-6, 1e-6, 100);
-[root_secant, its, flags, glist3] = secant_solver(f, L, R, 1e-6, 1e-6, 100);
-
-% printing results
-fprintf('bisection root: %.6f  iters:%d flag:%d\n', root_bisect, itb, flagb);
-fprintf('newton root: %.6f    iters:%d flag:%d\n', root_newton, itn, flagn);
-fprintf('secant root: %.6f    iters:%d flag:%d\n', root_secant, its, flags);
-
-% step 3: random trials to collect (xn, xn+1) pairs
-rng(0);                  % fixed seed for repeatability
-ntrials = 40;            % how many random runs per method
-
-% containers for all pairs
-bef_b = []; aft_b = [];
-bef_n = []; aft_n = [];
-bef_s = []; aft_s = [];
-
-% bisection trials (random brackets near the same root)
-for k = 1:ntrials
-    a = -0.2 + 1.4*rand;           % random left in [-0.2, 1.2]
-    b = a + 0.6 + 0.8*rand;        % random right at least 0.6 away
-    if f(a)*f(b) > 0, continue, end
-
-    [rk, itk, flagk, glk] = bisection_solver(f, a, b, 1e-6, 1e-6, 200);
-    if flagk ~= 1 || numel(glk) < 2, continue, end
-
-    % step 1: xn sequence lives in glk
-    % step 2: error uses this run's root as reference
-    ek = abs(glk - rk);
-
-    % build (eps_n, eps_{n+1})
-    bef_b = [bef_b, ek(1:end-1)];
-    aft_b = [aft_b, ek(2:end)];
-end
-
-% newton trials (random single starts near the root)
-for k = 1:ntrials
-    x0 = -0.5 + 5.0*rand;          % random start in [-0.5, 1.5]
-    [rk, itk, flagk, glk] = newton_solver(@(x) deal(f(x), df(x)), x0, 1e-6, 1e-6, 100);
-    if flagk ~= 1 || numel(glk) < 2, continue, end
-
-    ek = abs(glk - rk);
-    bef_n = [bef_n, ek(1:end-1)];
-    aft_n = [aft_n, ek(2:end)];
-end
-
-% secant trials (random pairs near the root)
-for k = 1:ntrials
-    x0 = -0.7 + 1*rand;
-    x1 = -0.7 + 5.0*rand;
-    if x0 == x1, x1 = x1 + 1e-3; end
-
-    [rk, itk, flagk, glk] = secant_solver(f, x0, x1, 1e-6, 1e-6, 100);
-    if flagk ~= 1 || numel(glk) < 2, continue, end
-
-    ek = abs(glk - rk);
-    bef_s = [bef_s, ek(1:end-1)];
-    aft_s = [aft_s, ek(2:end)];
-end
-
-% quick check that step 3 collected data (and step 1/2/4 are in play)
-fprintf('pairs collected -> bisection:%d  newton:%d  secant:%d\n', ...
-    numel(bef_b), numel(bef_n), numel(bef_s));
-if isempty(bef_b) || isempty(bef_n) || isempty(bef_s)
-    warning('some method did not collect data correctly');
-else
-    disp('all methods produced data -> step 3 good');
-end
-
 %example for how to filter the error data
 %currently have error_list0, error_list1, index_list
 %data points to be used in the regression
-bregx = []; % e_n
-bregy = []; % e_{n+1}
-%iterate through the collected data
-for n=1:length(bef_b)
-    %if the error is not too big or too small
-    %and it was enough iterations into the trial...
-    if bef_b(n)>1e-15 && bef_b(n)<1e-2 && ...
-            aft_b(n)>1e-14 && aft_b(n)<1e-2 
-        %then add it to the set of points for regression
-        bregx(end+1) = bef_b(n);
-        bregy(end+1) = aft_b(n);
-    end
-end
 
-nregx = []; % e_n
-nregy = []; % e_{n+1}
-%iterate through the collected data
-for n=1:length(bef_n)
-    %if the error is not too big or too small
-    %and it was enough iterations into the trial...
-    if bef_n(n)>1e-15 && bef_n(n)<1e-2 && ...
-            aft_n(n)>1e-14 && aft_n(n)<1e-2 
-        %then add it to the set of points for regression
-        nregx(end+1) = bef_n(n);
-        nregy(end+1) = aft_n(n);
-    end
-end
 
-sregx = []; % e_n
-sregy = []; % e_{n+1}
-%iterate through the collected data
-for n=1:length(bef_s)
-    %if the error is not too big or too small
-    %and it was enough iterations into the trial...
-    if bef_s(n)>1e-15 && bef_s(n)<1e-2 && ...
-            aft_s(n)>1e-14 && aft_s(n)<1e-2 
-        %then add it to the set of points for regression
-        sregx(end+1) = bef_s(n);
-        sregy(end+1) = aft_s(n);
-    end
-end
 
 % combined plot to see all three on one figure
 figure; grid on
-loglog(bef_b, aft_b, 'ro', 'markerfacecolor','r', 'markersize',3)   % bisection
-hold on;
-loglog(bef_n, aft_n, 'go', 'markerfacecolor','g', 'markersize',3)   % newton
-loglog(bef_s, aft_s, 'bo', 'markerfacecolor','b', 'markersize',3)   % secant
+if solver_flag == 1
+    loglog(bef_b, aft_b, 'ro', 'markerfacecolor','r', 'markersize',3)   % bisection
+end
+
+if solver_flag == 2
+    loglog(bef_n, aft_n, 'go', 'markerfacecolor','g', 'markersize',3)   % newton
+end
+
+if solver_flag == 3
+    loglog(bef_s, aft_s, 'bo', 'markerfacecolor','b', 'markersize',3)   % secant
+end
 xlabel('\epsilon_n'); ylabel('\epsilon_{n+1}');
 title('error map from random trials')
 legend('bisection','newton','secant','location','best')
 hold off
 
 figure; grid on
+if solver_flag == 1
 loglog(bregx, bregy, 'ro', 'markerfacecolor','r', 'markersize',3)
-hold on
+end
+if solver_flag == 3
 loglog(nregx, nregy, 'ro', 'markerfacecolor','g', 'markersize',3)
+end
+if solver_flag == 3
 loglog(sregx, sregy, 'ro', 'markerfacecolor','b', 'markersize',3)
-[p_b, k_b] = generate_error_fit(bregx, bregy)
-[p_n, k_n] = generate_error_fit(nregx, nregy)
-[p_s, k_s] = generate_error_fit(sregx, sregy)
-[dfdx,d2fdx2] = approximate_derivative(f,root_newton);
-newtexp = abs((1/2)*(d2fdx2/dfdx))
+end
+
+
+
+
+
 
 figure
 ms = glist1;                                  % step 1: xn sequence (bisection midpoints)
