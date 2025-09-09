@@ -23,10 +23,10 @@ if solver_flag == 1
 %     b = a + 0.6 + 0.8*rand;        % random right at least 0.6 away
 
     % where f(l) and f(r) have opposite signs
-    L = guess_list1; R = guess_list2;
-    [root_bisect, itb, flagb, glist1] = bisection_solver(f, L, R, 1e-6, 1e-6, 200);
+    L = x_guess0(1); R = x_guess0(2);
+    [root, itb, flagb, glist] = bisection_solver(f, L, R, 1e-14, 1e-14, 500);
     % printing results
-    fprintf('bisection root: %.6f  iters:%d flag:%d\n', root_bisect, itb, flagb);
+    fprintf('bisection root: %.6f  iters:%d flag:%d\n', root, itb, flagb);
     
     bef_b = []; aft_b = [];
     for k = 1:length(guess_list1)
@@ -34,7 +34,7 @@ if solver_flag == 1
         b = guess_list2(k);
         if f(a)*f(b) > 0, continue, end
     
-        [rk, itk, flagk, glk] = bisection_solver(f, a, b, 1e-6, 1e-6, 200);
+        [rk, itk, flagk, glk] = bisection_solver(f, a, b, 1e-14, 1e-14, 500);
         if flagk ~= 1 || numel(glk) < 2, continue, end
     
         % step 1: xn sequence lives in glk
@@ -61,9 +61,9 @@ if solver_flag == 1
         end
     end
     % quick check that step 3 collected data (and step 1/2/4 are in play)
-    fprintf('pairs collected -> bisection:%d  newton:%d  secant:%d\n', ...
-        numel(bef_b), numel(bef_n), numel(bef_s));
-    if isempty(bef_b) || isempty(bef_n) || isempty(bef_s)
+    fprintf('pairs collected -> bisection:%d', ...
+        numel(bef_b));
+    if isempty(bef_b) 
         warning('some method did not collect data correctly');
     else
         disp('all methods produced data -> step 3 good');
@@ -74,16 +74,15 @@ end
 if solver_flag == 2
 % % this is basically what guess list 1 should be 
 % % newton trials (random single starts near the root)
-% a = -0.2 + 1.4*rand;           % random left in [-0.2, 1.2]
-% b = a + 0.6 + 0.8*rand;        % random right at least 0.6 away
-    [root_newton, itn, flagn, glist2] = newton_solver(@(x) deal(f(x), df(x)), M, 1e-6, 1e-6, 100);
+% x = -0.5 + 5.0*rand;           
+    [root, itn, flagn, glist] = newton_solver(@(x) deal(f(x), df(x)), x_guess0, 1e-14, 1e-14, 500);
     % printing results
-    fprintf('newton root: %.6f    iters:%d flag:%d\n', root_newton, itn, flagn);
+    fprintf('newton root: %.6f    iters:%d flag:%d\n', root, itn, flagn);
 
     bef_n = []; aft_n = [];
     for k = 1:length(guess_list1)
         % random start in [-0.5, 1.5]
-        [rk, itk, flagk, glk] = newton_solver(@(x) deal(f(x), df(x)), guess_list1(k), 1e-6, 1e-6, 100);
+        [rk, itk, flagk, glk] = newton_solver(@(x) deal(f(x), df(x)), guess_list1(k), 1e-14, 1e-14, 500);
         if flagk ~= 1 || numel(glk) < 2, continue, end
 
         ek = abs(glk - rk);
@@ -103,8 +102,16 @@ if solver_flag == 2
             nregy(end+1) = aft_n(n);
         end
     end
+    % quick check that step 3 collected data (and step 1/2/4 are in play)
+    fprintf('pairs collected -> newton:%d', ...
+        numel(bef_n));
+    if isempty(bef_n)
+        warning('some method did not collect data correctly');
+    else
+        disp('all methods produced data -> step 3 good');
+    end
     [p_n, k_n] = generate_error_fit(nregx, nregy)
-    [dfdx,d2fdx2] = approximate_derivative(f,root_newton);
+    [dfdx,d2fdx2] = approximate_derivative(f,root);
     newtexp = abs((1/2)*(d2fdx2/dfdx))
 end
 
@@ -112,8 +119,8 @@ if solver_flag == 3
 % % this is basically what guess list 1 and 2 should be 
 % % secant trials (random pairs near the root)
 
-    [root_secant, its, flags, glist3] = secant_solver(f, L, R, 1e-6, 1e-6, 100);
-    fprintf('secant root: %.6f    iters:%d flag:%d\n', root_secant, its, flags);
+    [root, its, flags, glist] = secant_solver(f, x_guess0(1), x_guess0(2), 1e-14, 1e-14, 500);
+    fprintf('secant root: %.6f    iters:%d flag:%d\n', root, its, flags);
 
     % containers for all pairs
 
@@ -123,7 +130,7 @@ if solver_flag == 3
         x1 = guess_list2(k);
         if x0 == x1, x1 = x1 + 1e-7; end
     
-        [rk, itk, flagk, glk] = secant_solver(f, x0, x1, 1e-6, 1e-6, 100);
+        [rk, itk, flagk, glk] = secant_solver(f, x0, x1, 1e-14, 1e-14, 500);
         if flagk ~= 1 || numel(glk) < 2, continue, end
     
         ek = abs(glk - rk);
@@ -143,11 +150,19 @@ if solver_flag == 3
             sregy(end+1) = aft_s(n);
         end
     end
+    % quick check that step 3 collected data (and step 1/2/4 are in play)
+    fprintf('pairs collected ->  secant:%d\n', ...
+        numel(bef_s));
+    if isempty(bef_s)
+        warning('some method did not collect data correctly');
+    else
+        disp('all methods produced data -> step 3 good');
+    end
     [p_s, k_s] = generate_error_fit(sregx, sregy)
 end
 
 if solver_flag == 4
-
+    fzero(f, x_guess0)
 end
 
 
@@ -179,14 +194,15 @@ if solver_flag == 3
 end
 xlabel('\epsilon_n'); ylabel('\epsilon_{n+1}');
 title('error map from random trials')
-legend('bisection','newton','secant','location','best')
+which = {'bisection','newton','secant'};
+legend(which(solver_flag),'location','best')
 hold off
 
 figure; grid on
 if solver_flag == 1
 loglog(bregx, bregy, 'ro', 'markerfacecolor','r', 'markersize',3)
 end
-if solver_flag == 3
+if solver_flag == 2
 loglog(nregx, nregy, 'ro', 'markerfacecolor','g', 'markersize',3)
 end
 if solver_flag == 3
@@ -199,8 +215,8 @@ end
 
 
 figure
-ms = glist1;                                  % step 1: xn sequence (bisection midpoints)
-ms_err = abs(ms - root_bisect);               % step 2: error vs chosen reference root
+ms = glist;                                   % step 1: xn sequence (bisection midpoints)
+ms_err = abs(ms - root);               % step 2: error vs chosen reference root
 bef = ms_err(1:end-1);                        % step 4: eps_n
 aft = ms_err(2:end);                          % step 4: eps_{n+1}
 loglog(bef, aft, "r.")                        % step 4: log-log plot of (eps_n, eps_{n+1})
@@ -246,7 +262,7 @@ function [root, it, flag, glist] = newton_solver(fun_both, x0, Athresh, Bthresh,
             flag = -2; return               % -2 = zero derivative
         end
         x_new = root - fx/dfx;              % updating step
-        glist(end+1) = root;                % step 1: save iterate (kept as is)
+        glist(end+1) = x_new;                % step 1: save iterate (kept as is)
         if abs(x_new - root) < Athresh
             root = x_new; flag = 1; return
         end
