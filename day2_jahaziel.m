@@ -21,9 +21,9 @@ M = (L + R)/2;
 % running all mthds using new generic solvers
 % step 1: saving iterates in glist1/glist2/glist3
 % step 2: roots below are the reference used for errors right after
-[root_bisect, itb, flagb, glist1] = bisection_solver(f, L, R, 1e-6, 1e-6, 200);
-[root_newton, itn, flagn, glist2] = newton_solver(@(x) deal(f(x), df(x)), M, 1e-6, 1e-6, 100);
-[root_secant, its, flags, glist3] = secant_solver(f, L, R, 1e-6, 1e-6, 100);
+[root_bisect, itb, flagb, glist1] = bisection_solver(f, L, R, 1e-14, 1e-14, 500);
+[root_newton, itn, flagn, glist2] = newton_solver(@(x) deal(f(x), df(x)), M, 1e-14, 1e-14, 200);
+[root_secant, its, flags, glist3] = secant_solver(f, L, R, 1e-14, 1e-14, 200);
 
 % printing results
 fprintf('bisection root: %.6f  iters:%d flag:%d\n', root_bisect, itb, flagb);
@@ -45,7 +45,7 @@ for k = 1:ntrials
     b = a + 0.6 + 0.8*rand;        % random right at least 0.6 away
     if f(a)*f(b) > 0, continue, end
 
-    [rk, itk, flagk, glk] = bisection_solver(f, a, b, 1e-6, 1e-6, 200);
+    [rk, itk, flagk, glk] = bisection_solver(f, a, b, 1e-14, 1e-14, 500);
     if flagk ~= 1 || numel(glk) < 2, continue, end
 
     % step 1: xn sequence lives in glk
@@ -59,8 +59,8 @@ end
 
 % newton trials (random single starts near the root)
 for k = 1:ntrials
-    x0 = -0.5 + 5.0*rand;          % random start in [-0.5, 1.5]
-    [rk, itk, flagk, glk] = newton_solver(@(x) deal(f(x), df(x)), x0, 1e-6, 1e-6, 100);
+    x0 = -0.5 + 2.0*rand;          % random start in [-0.5, 1.5]
+    [rk, itk, flagk, glk] = newton_solver(@(x) deal(f(x), df(x)), x0, 1e-14, 1e-14, 200);
     if flagk ~= 1 || numel(glk) < 2, continue, end
 
     ek = abs(glk - rk);
@@ -70,11 +70,11 @@ end
 
 % secant trials (random pairs near the root)
 for k = 1:ntrials
-    x0 = -0.7 + 1*rand;
-    x1 = -0.7 + 5.0*rand;
+    x0 = -0.5 + 2.0*rand;
+    x1 = -0.5 + 2.0*rand;
     if x0 == x1, x1 = x1 + 1e-3; end
 
-    [rk, itk, flagk, glk] = secant_solver(f, x0, x1, 1e-6, 1e-6, 100);
+    [rk, itk, flagk, glk] = secant_solver(f, x0, x1, 1e-14, 1e-14, 200);
     if flagk ~= 1 || numel(glk) < 2, continue, end
 
     ek = abs(glk - rk);
@@ -157,7 +157,7 @@ loglog(sregx, sregy, 'ro', 'markerfacecolor','b', 'markersize',3)
 [p_s, k_s] = generate_error_fit(sregx, sregy)
 [dfdx,d2fdx2] = approximate_derivative(f,root_newton);
 newtexp = abs((1/2)*(d2fdx2/dfdx))
-
+set(gca,'XScale','log','YScale','log')   % keep on log after hold/legend calls
 
 
 figure
@@ -205,7 +205,7 @@ function [root, it, flag, glist] = newton_solver(fun_both, x0, Athresh, Bthresh,
             flag = -2; return               % -2 = zero derivative
         end
         x_new = root - fx/dfx;              % updating step
-        glist(end+1) = root;                % step 1: save iterate (kept as is)
+        glist(end+1) = x_new;                % step 1: save iterate (kept as is)
         if abs(x_new - root) < Athresh
             root = x_new; flag = 1; return
         end
@@ -271,6 +271,9 @@ function [dfdx,d2fdx2] = approximate_derivative(fun,x)
     d2fdx2 = (f_right-2*f_0+f_left)/(delta_x^2);
 end
 
+pb = polyfit(log10(bregx), log10(bregy), 1);  fprintf('p_b ≈ %.3f\n', pb(1));
+pn = polyfit(log10(nregx), log10(nregy), 1);  fprintf('p_n ≈ %.3f\n', pn(1));
+ps = polyfit(log10(sregx), log10(sregy), 1);  fprintf('p_s ≈ %.3f\n', ps(1));
 
 % part 3 changes compared to part 2
 % step 1
@@ -318,3 +321,13 @@ end
 % newton x0 is picked near the root so we see convergence but avoid wrong root
 % secant uses two starts in same range and forces x0 ≠ x1 to avoid division by zero
 % these ranges give enough variation to get good error pairs without solver failure
+
+
+%jah notes
+% use tighter tolerances so errors reach ~1e-15 like the handout
+% saving x_new fixes (xn, xn+1) pairing for the error map
+% keep starts near the ~0.7 root to avoid wrong-root noise
+% lower tolerances make points extend to ~1e-15 (machine floor)
+% newton glist stores x_new so (eps_n, eps_{n+1}) pairs are correct
+% expect diagonal lines with slopes ~1 (bisect), ~2 (newton), ~1.6 (secant)
+% bottom-left horizontal tail appears when errors hit precision limits
