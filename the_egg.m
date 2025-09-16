@@ -23,9 +23,9 @@ function the_egg()
     tan_vec_x = [V_single(1),V_single(1)+vector_scaling*G_single(1)];
     tan_vec_y = [V_single(2),V_single(2)+vector_scaling*G_single(2)];
     plot(tan_vec_x,tan_vec_y,'g')
-    [xmin, xmax, ymin, ymax] = compute_bounding_box(x0, y0, theta, egg_params);
+    [Vxmin, Vxmax, Vymin, Vymax] = compute_bounding_box(x0, y0, theta, egg_params);
 
-    plot([xmin, xmax, xmax, xmin, xmin], [ymin, ymin, ymax, ymax, ymin], 'k--')
+    plot([Vxmin(1), Vxmax(1), Vxmax(1), Vxmin(1), Vxmin(1)], [Vymin(1), Vymin(1), Vymax(1), Vymax(1), Vymin(1)], 'k--')
     
     traj_params.g = 9.81;
     traj_params.vy = 0;
@@ -41,16 +41,21 @@ function the_egg()
     hold on;
     [t_ground,t_wall] = collision_func(@egg_trajectory, traj_params, egg_params, y_ground, x_wall);
     t_stop = min(t_ground, t_wall);
+    ground_condition = 0;
+    if t_stop == t_ground
+        ground_condition = 1;
+    end
     [x0,y0,theta] = egg_trajectory(t_stop, traj_params);
     [V_list, ~] = egg_func(linspace(0,1,100),x0,y0,theta,egg_params);
     %plot the perimeter of the egg
+
     plot(V_list(1,:),V_list(2,:),'k', 'LineWidth', 2);
     plot([0, x_wall], [y_ground, y_ground], 'k')
-    plot([x_wall, x_wall], [0, 10], 'r')
+    plot([x_wall, x_wall], [0, 20], 'r')
     axis equal;
     
     % animation_example(traj_params,egg_params, x_wall, y_ground, t_stop)
-    video_example(traj_params, egg_params, x_wall, y_ground, t_stop)
+    % video_example(traj_params, egg_params, x_wall, y_ground, t_stop, ground_condition)
 end
 
 function [root, it, flag, glist] = newton_solver(fun_both, x0, Athresh, Bthresh, maxit)
@@ -133,7 +138,7 @@ function Gy = egg_wrapper_func1_y(s,x0,y0,theta,egg_params)
     Gy = G(2);
 end
 
-function [xmin, xmax, ymin, ymax] = compute_bounding_box(x0,y0,theta,egg_params)
+function [Vxmin, Vxmax, Vymin, Vymax] = compute_bounding_box(x0,y0,theta,egg_params)
     egg_wrapper_func2_x = @(s_in) egg_wrapper_func1_x(s_in,x0,y0,theta,egg_params);
     egg_wrapper_func2_y = @(s_in) egg_wrapper_func1_y(s_in,x0,y0,theta,egg_params);
     s_guesses = 0:.2:1;
@@ -143,19 +148,33 @@ function [xmin, xmax, ymin, ymax] = compute_bounding_box(x0,y0,theta,egg_params)
     dfdxmin = 1e-8;
     x_list = [];
     y_list = [];
+    
+    x_list_other = [];
+    y_list_other = [];
+
     for s_guess = s_guesses
         s_rootx = secant_solver(egg_wrapper_func2_x, s_guess, s_guess+1e-4, dxtol, ytol, max_iter);
         [V,~] = egg_func(s_rootx, x0, y0, theta, egg_params);
         x_list(end+1) = V(1);
+        y_list_other(end+1) = V(2);
 
         s_rooty = secant_solver(egg_wrapper_func2_y, s_guess, s_guess+1e-4, dxtol, ytol, max_iter);
         [V,~] = egg_func(s_rooty, x0, y0, theta, egg_params);
         y_list(end+1) = V(2);
+        x_list_other(end+1) = V(1);
     end
-    xmin = min(x_list);
-    xmax = max(x_list);
-    ymin = min(y_list);
-    ymax = max(y_list);
+    [xmin,x_min_index] = min(x_list);
+    y_other_min = y_list_other(x_min_index);
+    Vxmin = [xmin;y_other_min];
+    [xmax, x_max_index] = max(x_list);
+    y_other_min = y_list_other(x_max_index);
+    Vxmax = [xmax;y_other_min];
+    [ymin, y_min_index] = min(y_list);
+    x_other_max = x_list_other(y_min_index);
+    Vymin = [ymin;x_other_max];
+    [ymax, y_max_index] = max(y_list);
+    x_other_max = x_list_other(y_max_index);
+    Vymax = [ymax;x_other_max];
     % xrange = [xmin, xmax]; 
     % yrange = [ymin, ymax];
 end
@@ -175,14 +194,14 @@ end
 
 function dx = xdist(t, traj_fun, traj_params, egg_params, x_wall)
     [x0, y0, theta] = traj_fun(t, traj_params);
-    [~, xmax, ~, ~] = compute_bounding_box(x0,y0,theta,egg_params);
-    dx = x_wall - xmax;
+    [~, Vxmax, ~, ~] = compute_bounding_box(x0,y0,theta,egg_params);
+    dx = x_wall - Vxmax(1);
 end
 
 function dy = ydist(t, traj_fun, traj_params, egg_params, y_ground)
     [x0, y0, theta] = traj_fun(t, traj_params);
-    [~, ~, ymin, ~] = compute_bounding_box(x0,y0,theta,egg_params);
-    dy = ymin-y_ground;
+    [~, ~, Vymin, ~] = compute_bounding_box(x0,y0,theta,egg_params);
+    dy = Vymin(1)-y_ground;
 end
 
 %Function that computes the collision time for a thrown egg
@@ -221,7 +240,7 @@ function animation_example(traj_params, egg_params, x_wall, y_ground, t_stop)
     end
 end
 
-function video_example(traj_params, egg_params, x_wall, y_ground, t_stop)
+function video_example(traj_params, egg_params, x_wall, y_ground, t_stop, ground_condition)
     %define location and filename where video will be stored
     %written a bit weird to make it fit when viewed in assignment
     mypath = 'C:\orionmath\appliedmathassignment1\';
@@ -236,11 +255,21 @@ function video_example(traj_params, egg_params, x_wall, y_ground, t_stop)
     clf
     fig1 = figure(3);
     axis([0, x_wall+1, y_ground, 20])
+
+    [x0,y0,theta] = egg_trajectory(t_stop, traj_params);
+    [~, Vxmax, Vymin, ~] = compute_bounding_box(x0, y0, theta, egg_params);
+    if ground_condition == 1
+        end_point = [Vymin(2), Vymin(1)];
+    else
+        end_point = Vxmax;
+    end
+
     hold on; axis equal;
     %initialize the plot
     % Draw static wall and ground
     plot([0, x_wall], [y_ground, y_ground], 'k');  % ground
     plot([x_wall, x_wall], [y_ground, 20], 'r');   % wall
+    plot(end_point(1), end_point(2), 'g*', 'MarkerSize', 8)
     
     % Initialize the egg plot with empty data
     start_plot = plot(nan, nan, 'k', 'LineWidth', 2);
@@ -264,6 +293,25 @@ function video_example(traj_params, egg_params, x_wall, y_ground, t_stop)
     end
     for i = 1:20
         [x0,y0,theta] = egg_trajectory(t_stop, traj_params);
+        [V_list, ~] = egg_func(linspace(0,1,100),x0,y0,theta,egg_params);
+        % %plot the perimeter of the egg
+        % plot(V_list(1,:),V_list(2,:),'k', 'LineWidth', 2);
+        % plot([0, x_wall], [y_ground, y_ground], 'k')
+        % plot([x_wall, x_wall], [0, 10], 'r')
+        %update the coordinates of the square plot
+        set(start_plot,'xdata',V_list(1,:),'ydata',V_list(2,:));
+        %update the actual plotting window
+        drawnow;
+
+        %capture a frame (what is currently plotted)
+        current_frame = getframe(fig1);
+        %write the frame to the video
+        writeVideo(writerObj,current_frame);
+    end
+
+
+    for i = 1:20
+
         [V_list, ~] = egg_func(linspace(0,1,100),x0,y0,theta,egg_params);
         % %plot the perimeter of the egg
         % plot(V_list(1,:),V_list(2,:),'k', 'LineWidth', 2);
