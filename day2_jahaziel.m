@@ -161,13 +161,13 @@ legend('bisection','newton','secant','location','best')
 set(gca,'XScale','log','YScale','log')   % keep on log after hold/legend calls
 
 
-figure
-ms = glist1;                                  % step 1: xn sequence (bisection midpoints)
-ms_err = abs(ms - root_bisect);               % step 2: error vs chosen reference root
-bef = ms_err(1:end-1);                        % step 4: eps_n
-aft = ms_err(2:end);                          % step 4: eps_{n+1}
-loglog(bef, aft, "r.")                        % step 4: log-log plot of (eps_n, eps_{n+1})
-loglog(bef, aft, 'ro', 'markerfacecolor','r','markersize',1);  % step 4: same points styled
+% figure
+% ms = glist1;                                  % step 1: xn sequence (bisection midpoints)
+% ms_err = abs(ms - root_bisect);               % step 2: error vs chosen reference root
+% bef = ms_err(1:end-1);                        % step 4: eps_n
+% aft = ms_err(2:end);                          % step 4: eps_{n+1}
+% loglog(bef, aft, "r.")                        % step 4: log-log plot of (eps_n, eps_{n+1})
+% loglog(bef, aft, 'ro', 'markerfacecolor','r','markersize',1);  % step 4: same points styled
 
 function [root, it, flag, glist] = bisection_solver(f, L, R, Athresh, Bthresh, maxit)
     % part 2: bisection safeguard (make sure root is bracketed)

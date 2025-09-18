@@ -11,10 +11,10 @@
 function convergence_analysis(solver_flag, fun, ...
 x_guess0, guess_list1, guess_list2, filter_list)
 
-f = @(x) (x.^3)/100 - (x.^2)/8 + 2*x + 6*sin(x/2 + 6) - 0.7 - exp(x/6);
-df = @(x) 3*(x.^2)/100 - x/4 + 2 + 3*cos(x/2 + 6) - exp(x/6)/6;
-% f = @(x) (x-30.89).^2;
-% df = @(x) 2*(x-30.89);
+% f = @(x) (x.^3)/100 - (x.^2)/8 + 2*x + 6*sin(x/2 + 6) - 0.7 - exp(x/6);
+% df = @(x) 3*(x.^2)/100 - x/4 + 2 + 3*cos(x/2 + 6) - exp(x/6)/6;
+f = @(x) (x-30.89).^2;
+df = @(x) 2*(x-30.89);
 % f = @(x) 8.3*(exp());
 % df = @(x) 2*(x-30.89);
 
@@ -167,38 +167,38 @@ if solver_flag == 3
 end
 
 if solver_flag == 4
-    bef_s = [];
-    aft_s = [];
+    bef_f = [];
+    aft_f = [];
     my_recorder = input_recorder();
     f_record = my_recorder.generate_recorder_fun(fun);
     for k = 1:length(guess_list1)
         fz_root = fzero(f_record, guess_list1(k));
         input_list = my_recorder.get_input_list();
         ek = abs(input_list - fz_root);
-        bef_s = [bef_s, ek(1:end-1)];
-        aft_s = [aft_s, ek(2:end)];
+        bef_f = [bef_f, ek(1:end-1)];
+        aft_f = [aft_f, ek(2:end)];
         my_recorder.clear_input_list();
     end
-    sregx = []; % e_n
-    sregy = []; % e_{n+1}
-    for n=1:length(bef_s)
+    fregx = []; % e_n
+    fregy = []; % e_{n+1}
+    for n=1:length(bef_f)
         %if the error is not too big or too small
         %and it was enough iterations into the trial...
-        if bef_s(n)>1e-15 && bef_s(n)<1e-2 && ...
-                aft_s(n)>1e-14 && aft_s(n)<1e-2 
+        if bef_f(n)>1e-15 && bef_f(n)<1e-2 && ...
+                aft_f(n)>1e-14 && aft_f(n)<1e-2 
             %then add it to the set of points for regression
-            sregx(end+1) = bef_s(n);
-            sregy(end+1) = aft_s(n);
+            fregx(end+1) = bef_f(n);
+            fregy(end+1) = aft_f(n);
         end
     end
     fprintf('pairs collected ->  fzero:%d\n', ...
-        numel(bef_s));
-    if isempty(bef_s)
+        numel(bef_f));
+    if isempty(bef_f)
         warning('some method did not collect data correctly');
     else
         disp('all methods produced data -> step 4 good');
     end
-    [p_s, k_s] = generate_error_fit(sregx, sregy)
+    [p_f, k_f] = generate_error_fit(fregx, fregy)
 end
 
 
@@ -216,7 +216,7 @@ xlabel('x'); ylabel('f(x)');
 
 
 % combined plot to see all three on one figure
-figure; grid on
+figure; 
 if solver_flag == 1
     loglog(bef_b, aft_b, 'ro', 'markerfacecolor','r', 'markersize',3)   % bisection
 end
@@ -228,10 +228,28 @@ end
 if solver_flag == 3
     loglog(bef_s, aft_s, 'bo', 'markerfacecolor','b', 'markersize',3)   % secant
 end
+if solver_flag == 4
+    loglog(bef_f, aft_f, 'ko', 'markerfacecolor','k', 'markersize',3)   % secant
+    m = (fregx>0) & (fregy>0);
+    xf = fregx(m); yf = fregy(m);
+    % fit in log space: log10(y) = a*log10(x) + b
+    pfzero = polyfit(log10(xf), log10(yf), 1);
+    af = pfzero(1); bb = pfzero(2); kf = 10^bb;
+    % smooth curve across data range
+    xbf = logspace(log10(min(xf)), log10(max(xf)), 200);
+    ybf = kf * xbf.^af;
+    % plot
+    figure; grid on; hold on
+    loglog(xf, yf, 'ro', 'markerfacecolor','r', 'markersize',3)        % data
+    loglog(xbf, ybf, 'r-', 'linewidth',1.6) 
+end
+ 
+
+grid on;
 xlabel('\epsilon_n'); ylabel('\epsilon_{n+1}');
 title('error map from random trials')
-which = {'bisection','newton','secant'};
-legend(which(solver_flag),'location','best')
+which = {'bisection','newton','secant','fzero'};
+% legend(which(solver_flag),'location','best')
 hold off
 
 figure; grid on
@@ -244,19 +262,42 @@ end
 if solver_flag == 3
 loglog(sregx, sregy, 'ro', 'markerfacecolor','b', 'markersize',3)
 end
+if solver_flag == 4
+loglog(bef_f, aft_f, 'ko', 'markerfacecolor','k', 'markersize',3)
+    m = (fregx>0) & (fregy>0);
+    xf = fregx(m); yf = fregy(m);
+    % fit in log space: log10(y) = a*log10(x) + b
+    pfzero = polyfit(log10(xf), log10(yf), 1);
+    af = pfzero(1); 
+    bb = pfzero(2); 
+    kf = 10^bb;
+    % smooth curve across data range
+    xbf = logspace(log10(min(xf)), log10(max(xf)), 200);
+    ybf = kf * xbf.^af;
+    % plot
+    grid on; hold on
+    % loglog(xf, yf, 'ro', 'markerfacecolor','r', 'markersize',3)        % data
+    loglog(xbf, ybf, 'r-', 'linewidth',1.6)
+    fprintf('p_f ≈ %.3f\n', pfzero(1))
+end
+xlabel('\epsilon_n'); ylabel('\epsilon_{n+1}');
+title('error map from random trials')
+set(gca,'XScale','log','YScale','log')
 
 
 
 
 
 
-figure
-ms = glist;                                   % step 1: xn sequence (bisection midpoints)
-ms_err = abs(ms - root);               % step 2: error vs chosen reference root
-bef = ms_err(1:end-1);                        % step 4: eps_n
-aft = ms_err(2:end);                          % step 4: eps_{n+1}
-loglog(bef, aft, "r.")                        % step 4: log-log plot of (eps_n, eps_{n+1})
-loglog(bef, aft, 'ro', 'markerfacecolor','r','markersize',1);  % step 4: same points styled
+
+
+% figure
+% ms = glist;                                   % step 1: xn sequence (bisection midpoints)
+% ms_err = abs(ms - root);               % step 2: error vs chosen reference root
+% bef = ms_err(1:end-1);                        % step 4: eps_n
+% aft = ms_err(2:end);                          % step 4: eps_{n+1}
+% loglog(bef, aft, "r.")                        % step 4: log-log plot of (eps_n, eps_{n+1})
+% loglog(bef, aft, 'ro', 'markerfacecolor','r','markersize',1);  % step 4: same points styled
 end
 
 
