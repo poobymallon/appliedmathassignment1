@@ -157,6 +157,7 @@ loglog(sregx, sregy, 'ro', 'markerfacecolor','b', 'markersize',3)
 [p_s, k_s] = generate_error_fit(sregx, sregy)
 [dfdx,d2fdx2] = approximate_derivative(f,root_newton);
 newtexp = abs((1/2)*(d2fdx2/dfdx))
+legend('bisection','newton','secant','location','best')
 set(gca,'XScale','log','YScale','log')   % keep on log after hold/legend calls
 
 
@@ -274,6 +275,54 @@ end
 pb = polyfit(log10(bregx), log10(bregy), 1);  fprintf('p_b ≈ %.3f\n', pb(1));
 pn = polyfit(log10(nregx), log10(nregy), 1);  fprintf('p_n ≈ %.3f\n', pn(1));
 ps = polyfit(log10(sregx), log10(sregy), 1);  fprintf('p_s ≈ %.3f\n', ps(1));
+
+% individual convergence plots with fit lines
+
+%bisection
+% keep positives only (log space)
+m = (bregx>0) & (bregy>0);
+xb = bregx(m); yb = bregy(m);
+% fit in log space: log10(y) = a*log10(x) + b
+pbis = polyfit(log10(xb), log10(yb), 1);
+ab = pbis(1); bb = pbis(2); kb = 10^bb;
+% smooth curve across data range
+xbf = logspace(log10(min(xb)), log10(max(xb)), 200);
+ybf = kb * xbf.^ab;
+% plot
+figure; grid on; hold on
+loglog(xb, yb, 'ro', 'markerfacecolor','r', 'markersize',3)        % data
+loglog(xbf, ybf, 'r-', 'linewidth',1.6)                            % fit
+xlabel('\epsilon_n'); ylabel('\epsilon_{n+1}')
+title(sprintf('bisection: fit p = %.3f', ab))
+set(gca,'XScale','log','YScale','log'); hold off
+
+%newton
+m = (nregx>0) & (nregy>0);
+xn = nregx(m); yn = nregy(m);
+pnew = polyfit(log10(xn), log10(yn), 1);
+an = pnew(1); bn = pnew(2); kn = 10^bn;
+xnf = logspace(log10(min(xn)), log10(max(xn)), 200);
+ynf = kn * xnf.^an;
+figure; grid on; hold on
+loglog(xn, yn, 'go', 'markerfacecolor','g', 'markersize',3)
+loglog(xnf, ynf, 'g-', 'linewidth',1.6)
+xlabel('\epsilon_n'); ylabel('\epsilon_{n+1}')
+title(sprintf('newton: fit p = %.3f', an))
+set(gca,'XScale','log','YScale','log'); hold off
+
+%secant
+m = (sregx>0) & (sregy>0);
+xs = sregx(m); ys = sregy(m);
+psec = polyfit(log10(xs), log10(ys), 1);
+as = psec(1); bs = psec(2); ks = 10^bs;
+xsf = logspace(log10(min(xs)), log10(max(xs)), 200);
+ysf = ks * xsf.^as;
+figure; grid on; hold on
+loglog(xs, ys, 'bo', 'markerfacecolor','b', 'markersize',3)
+loglog(xsf, ysf, 'b-', 'linewidth',1.6)
+xlabel('\epsilon_n'); ylabel('\epsilon_{n+1}')
+title(sprintf('secant: fit p = %.3f', as))
+set(gca,'XScale','log','YScale','log'); hold off
 
 % part 3 changes compared to part 2
 % step 1
