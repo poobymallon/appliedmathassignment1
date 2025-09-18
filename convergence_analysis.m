@@ -11,12 +11,12 @@
 function convergence_analysis(solver_flag, fun, ...
 x_guess0, guess_list1, guess_list2, filter_list)
 
-% f = @(x) (x.^3)/100 - (x.^2)/8 + 2*x + 6*sin(x/2 + 6) - 0.7 - exp(x/6);
-% df = @(x) 3*(x.^2)/100 - x/4 + 2 + 3*cos(x/2 + 6) - exp(x/6)/6;
+f = @(x) (x.^3)/100 - (x.^2)/8 + 2*x + 6*sin(x/2 + 6) - 0.7 - exp(x/6);
+df = @(x) 3*(x.^2)/100 - x/4 + 2 + 3*cos(x/2 + 6) - exp(x/6)/6;
 % f = @(x) (x-30.89).^2;
 % df = @(x) 2*(x-30.89);
-f = @(x) 8.3*(exp());
-df = @(x) 2*(x-30.89);
+% f = @(x) 8.3*(exp());
+% df = @(x) 2*(x-30.89);
 
 if solver_flag == 1
 
@@ -64,6 +64,7 @@ if solver_flag == 1
             bregy(end+1) = aft_b(n);
         end
     end
+
     % quick check that step 3 collected data (and step 1/2/4 are in play)
     fprintf('pairs collected -> bisection:%d', ...
         numel(bef_b));
@@ -166,7 +167,38 @@ if solver_flag == 3
 end
 
 if solver_flag == 4
-    fzero(f, x_guess0)
+    bef_s = [];
+    aft_s = [];
+    my_recorder = input_recorder();
+    f_record = my_recorder.generate_recorder_fun(fun);
+    for k = 1:length(guess_list1)
+        fz_root = fzero(f_record, guess_list1(k));
+        input_list = my_recorder.get_input_list();
+        ek = abs(input_list - fz_root);
+        bef_s = [bef_s, ek(1:end-1)];
+        aft_s = [aft_s, ek(2:end)];
+        my_recorder.clear_input_list();
+    end
+    sregx = []; % e_n
+    sregy = []; % e_{n+1}
+    for n=1:length(bef_s)
+        %if the error is not too big or too small
+        %and it was enough iterations into the trial...
+        if bef_s(n)>1e-15 && bef_s(n)<1e-2 && ...
+                aft_s(n)>1e-14 && aft_s(n)<1e-2 
+            %then add it to the set of points for regression
+            sregx(end+1) = bef_s(n);
+            sregy(end+1) = aft_s(n);
+        end
+    end
+    fprintf('pairs collected ->  fzero:%d\n', ...
+        numel(bef_s));
+    if isempty(bef_s)
+        warning('some method did not collect data correctly');
+    else
+        disp('all methods produced data -> step 4 good');
+    end
+    [p_s, k_s] = generate_error_fit(sregx, sregy)
 end
 
 
